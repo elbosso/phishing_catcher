@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) 2017 @x0rz
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,6 +18,7 @@ import yaml
 from Levenshtein import distance
 from termcolor import colored, cprint
 from tld import get_tld
+from datetime import datetime
 
 from confusables import unconfuse
 
@@ -95,12 +96,26 @@ def score_domain(domain):
 def callback(message, context):
     """Callback handler for certstream events."""
     if message['message_type'] == "heartbeat":
+        timestamp=message['timestamp']
+        print(timestamp)
+        ts = int(timestamp)
+        print(datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
         return
 
     if message['message_type'] == "certificate_update":
         all_domains = message['data']['leaf_cert']['all_domains']
 
+#        if(message['data']['update_type'] == "PreCertEntry"):
+#            print(message['data']['update_type'])
+        if(message['data']['leaf_cert']['extensions']['extendedKeyUsage'].upper().lower() != "TLS Web Server Authentication, TLS Web Client Authentication".upper().lower() and
+        message['data']['leaf_cert']['extensions']['extendedKeyUsage'].upper().lower() != "TLS Web Client Authentication".upper().lower() and
+        message['data']['leaf_cert']['extensions']['extendedKeyUsage'].upper().lower() != "TLS Web Server Authentication".upper().lower() and
+        message['data']['leaf_cert']['extensions']['extendedKeyUsage'].upper().lower() != "TLS Web Client Authentication, TLS Web Server Authentication".upper().lower()):
+            print (message['data']['leaf_cert'])
+
         for domain in all_domains:
+            if('anna-schmidt' in domain ):
+                print(message['data']['leaf_cert'])
             pbar.update(1)
             score = score_domain(domain.lower())
 
@@ -128,6 +143,8 @@ def callback(message, context):
             if score >= 75:
                 with open(log_suspicious, 'a') as f:
                     f.write("{}\n".format(domain))
+#        else:
+#            print(message)
 
 
 if __name__ == '__main__':

@@ -1,2 +1,5 @@
 *.pyc
 suspicious_domains.log
+/anna-schmidt.txt
+/log.txt
+/template.json
