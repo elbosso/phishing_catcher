@@ -19,6 +19,8 @@ from Levenshtein import distance
 from termcolor import colored, cprint
 from tld import get_tld
 from datetime import datetime
+from influxdb import InfluxDBClient
+import json
 
 from confusables import unconfuse
 
@@ -27,6 +29,26 @@ certstream_url = 'wss://certstream.calidog.io'
 log_suspicious = 'suspicious_domains.log'
 
 pbar = tqdm.tqdm(desc='certificate_update', unit='cert')
+
+#client = InfluxDBClient(host='127.0.0.1', port=8086)
+client = InfluxDBClient(host='192.168.10.2', port=8086)
+
+#print(client.get_list_users())
+
+databases = client.get_list_database()
+
+databaseAlreadyThere =False
+
+for item in databases:
+    if item['name'] == 'monitoring':
+        databaseAlreadyThere = True
+
+if databaseAlreadyThere == True:
+    print('yay - a database!')
+else:
+    client.create_database('monitoring')
+
+client.switch_database('monitoring')
 
 def score_domain(domain):
     """Score `domain`.
@@ -143,6 +165,28 @@ def callback(message, context):
             if score >= 75:
                 with open(log_suspicious, 'a') as f:
                     f.write("{}\n".format(domain))
+
+            if score >= 45:
+                json_body = [
+                    {
+                        "measurement": "PhishingCatcherCertChain",
+                        "tags": {
+                            'authorityKeyIdentifier': message['data']['leaf_cert']['extensions']['authorityKeyIdentifier'].replace('\n', '').replace('\r', ''),
+                            'ca': message['data']['chain'][0]['subject']['aggregated'],
+                            'root': message['data']['chain'][-1]['subject']['aggregated'],
+                            "score": score
+                        },
+                        "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "fields": {
+                            "score": score,
+                            "aggregated": message['data']['leaf_cert']['subject']['aggregated'],
+                            'ca': message['data']['chain'][0]['subject']['aggregated'],
+                            "domain": domain
+                        }
+                    }
+                ]
+                print(json_body)
+                client.write_points(json_body)
 #        else:
 #            print(message)
 
